@@ -55,6 +55,7 @@ class Lead(Base):
     company: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     source_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 

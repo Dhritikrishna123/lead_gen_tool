@@ -64,6 +64,7 @@ class LeadResponse(BaseModel):
     company: Optional[str] = None
     title: Optional[str] = None
     source_url: Optional[str] = None
+    description: Optional[str] = None
     confidence: float
 
     model_config = ConfigDict(from_attributes=True)

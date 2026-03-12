@@ -16,14 +16,7 @@ logger = logging.getLogger(__name__)
 engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-class BaseLeadScraper:
-    """
-    Placeholder base class for the actual scraper implementation.
-    The real scraper will be plugged in later behind this interface.
-    """
-    def scrape(self, intent: str, lead_count: int, job_id: int):
-        # NOTE: Playwright/scraping logic intentionally omitted per requirements.
-        raise NotImplementedError("Real scraper logic is not implemented yet.")
+from app.scrapers.upwork import UpworkScraper
 
 
 @celery_app.task(bind=True, name="app.tasks.generate_leads")
@@ -56,24 +49,41 @@ def generate_leads_task(self, job_id: int):
             logger.info(f"Job {job_id} was cancelled. Halting execution.")
             return
 
-        # 3. Call placeholder scraper
+        # 3. Call Upwork Scraper
         try:
-            scraper = BaseLeadScraper()
-            scraper.scrape(intent=job.intent, lead_count=job.lead_count, job_id=job.id)
+            scraper = UpworkScraper()
+            jobs_data = scraper.scrape(intent=job.intent, lead_count=job.lead_count, job_id=job.id)
 
-            # If the scraper doesn't raise, we update to 100%
+            for jd in jobs_data:
+                # Combine dynamic payload facts into standard DB text wrapper
+                description_block = (
+                    f"Job Type: {jd['job_type']}\n"
+                    f"Experience Level: {jd['experience_level']}\n"
+                    f"Budget: {jd['budget']}\n"
+                    f"Duration: {jd['duration']}\n"
+                    f"Workload: {jd['workload']}\n"
+                    f"Skills: {jd['skills']}\n"
+                    f"---\n"
+                    f"{jd['description']}"
+                )
+                
+                new_lead = Lead(
+                    job_id=job.id,
+                    name="Upwork User",
+                    email=None,
+                    company="Upwork",
+                    title=jd["title"],
+                    source_url=jd["url"],
+                    description=description_block,
+                    confidence=0.85
+                )
+                db.add(new_lead)
+            
+            db.commit()
+
+            # Update to 100%
             job.progress = 100
             job.status = "completed"
-            
-            # (In a real implementation, we might insert the returned Leads here)
-            # Insert dummy leads on success:
-            # db.add(Lead(job_id=job.id, name="Dummy Lead", confidence=0.9))
-
-        except NotImplementedError as e:
-            # Trap the NotImplementedError and fail the job gracefully exactly as requested
-            logger.warning(f"Job {job_id} failed intentionally: {str(e)}")
-            job.status = "failed"
-            job.error_message = str(e)
             
         except Exception as e:
             # Catch all generic exceptions
