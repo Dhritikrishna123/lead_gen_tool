@@ -17,6 +17,7 @@ engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 from app.scrapers.upwork import UpworkScraper
+from app.scrapers.freelancer import FreelancerScraper
 
 
 @celery_app.task(bind=True, name="app.tasks.generate_leads")
@@ -49,13 +50,24 @@ def generate_leads_task(self, job_id: int):
             logger.info(f"Job {job_id} was cancelled. Halting execution.")
             return
 
-        # 3. Call Upwork Scraper
+        # 3. Call Scrapers Sequentially
         try:
-            scraper = UpworkScraper()
-            jobs_data = scraper.scrape(intent=job.intent, lead_count=job.lead_count, job_id=job.id)
+            # Allocate target quotas
+            upwork_quota = max(1, job.lead_count // 2)
+            freelancer_quota = job.lead_count - upwork_quota
 
-            for jd in jobs_data:
-                # Combine dynamic payload facts into standard DB text wrapper
+            logger.info(f"Job {job_id} allocating {upwork_quota} to Upwork and {freelancer_quota} to Freelancer.")
+
+            # Upwork
+            upwork_scraper = UpworkScraper()
+            upwork_jobs_data = upwork_scraper.scrape(intent=job.intent, lead_count=upwork_quota, job_id=job.id)
+
+            # Freelancer
+            freelancer_scraper = FreelancerScraper()
+            freelancer_jobs_data = freelancer_scraper.scrape(intent=job.intent, lead_count=freelancer_quota, job_id=job.id)
+
+            # Insert Upwork Leads
+            for jd in upwork_jobs_data:
                 description_block = (
                     f"Job Type: {jd['job_type']}\n"
                     f"Experience Level: {jd['experience_level']}\n"
@@ -66,18 +78,27 @@ def generate_leads_task(self, job_id: int):
                     f"---\n"
                     f"{jd['description']}"
                 )
-                
-                new_lead = Lead(
-                    job_id=job.id,
-                    name="Upwork User",
-                    email=None,
-                    company="Upwork",
-                    title=jd["title"],
-                    source_url=jd["url"],
-                    description=description_block,
-                    confidence=0.85
+                db.add(Lead(
+                    job_id=job.id, name="Upwork User", company="Upwork",
+                    title=jd["title"], source_url=jd["url"],
+                    description=description_block, confidence=0.85
+                ))
+
+            # Insert Freelancer Leads
+            for jd in freelancer_jobs_data:
+                description_block = (
+                    f"Price: {jd['price']}\n"
+                    f"Bids: {jd['bids']}\n"
+                    f"Time Left: {jd['time_left']}\n"
+                    f"Skills: {jd['skills']}\n"
+                    f"---\n"
+                    f"{jd['description']}"
                 )
-                db.add(new_lead)
+                db.add(Lead(
+                    job_id=job.id, name="Freelancer User", company="Freelancer",
+                    title=jd["title"], source_url=jd["url"],
+                    description=description_block, confidence=0.85
+                ))
             
             db.commit()
 
