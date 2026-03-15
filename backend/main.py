@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.router import router as auth_router
-from app.routes import leads, upload
+from app.routes import leads
 
 app = FastAPI(
     title="Lead Gen Tool API",
@@ -30,7 +30,6 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(leads.router, prefix="/api/leads", tags=["Leads"])
-app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
 
 
 @app.get("/", tags=["Health"])

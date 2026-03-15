@@ -27,22 +27,23 @@ def test_scraper_integration():
             db.refresh(user)
 
         # 2. Create a dummy test job linked to the user
-        job = Job(user_id=user.id, intent="python developer", lead_count=3)
-        db.add(job)
+        new_job = Job(
+            user_id=user.id,
+            prompt="Find python developers on freelancer or upwork",
+            lead_count=3,
+            status="pending"
+        )
+        db.add(new_job)
         db.commit()
-        db.refresh(job)
+        db.refresh(new_job)
         
-        logger.info(f"Created test job '{job.id}' with intent '{job.intent}'")
-
-        # 3. Run the Celery task logic synchronously to test integration
+        logger.info(f"Created test job '{new_job.id}' with prompt '{new_job.prompt}'")
+        
+        # 3. Trigger the Celery task synchronously
         logger.info("Starting generate_leads_task execution (Browser will open)...")
-        generate_leads_task(job.id)
+        generate_leads_task(job_id=new_job.id, keywords=["python", "developer"], sources=["upwork", "freelancer"])
         
         # 4. Verify results
-        db.refresh(job)
-        logger.info(f"Job Status: {job.status}")
-        logger.info(f"Job Progress: {job.progress}%")
-        
         if job.error_message:
             logger.error(f"Job Error: {job.error_message}")
             

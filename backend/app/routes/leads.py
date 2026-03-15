@@ -11,6 +11,7 @@ from app.schemas.schemas import JobCreate, JobResponse, LeadResponse
 from app.models.models import Job, Lead, User
 from app.database import get_db
 from app.tasks.generate_leads import generate_leads_task
+from app.services.ai_engine import parse_prompt
 
 router = APIRouter()
 
@@ -32,9 +33,14 @@ async def generate_leads(
             detail="No authenticated user available; configure authentication or user ID 1.",
         )
 
+    # Run the prompt through Gemini to extract logic targets
+    parsed_data = await parse_prompt(job_in.prompt)
+    keywords = parsed_data.get("keywords", [])
+    sources = parsed_data.get("sources")
+
     new_job = Job(
         user_id=user.id,
-        intent=job_in.intent,
+        prompt=job_in.prompt,
         lead_count=job_in.lead_count,
         status="pending"
     )
@@ -43,7 +49,7 @@ async def generate_leads(
     db.refresh(new_job)
     
     # Process scraping jobs asynchronously via Celery
-    generate_leads_task.delay(new_job.id)
+    generate_leads_task.delay(new_job.id, keywords, sources)
 
     return new_job
 

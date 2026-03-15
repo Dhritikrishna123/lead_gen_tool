@@ -48,7 +48,7 @@ def setup_database():
         db.commit()
         db.refresh(dummy_user)
         
-        dummy_job = Job(user_id=dummy_user.id, intent="sales", lead_count=50, status="completed")
+        dummy_job = Job(user_id=dummy_user.id, prompt="Find sales leads", lead_count=50, status="completed")
         db.add(dummy_job)
         db.commit()
         db.refresh(dummy_job)
@@ -71,11 +71,11 @@ def setup_database():
 def test_generate_leads(setup_database):
     response = client.post(
         "/api/leads/generate",
-        json={"intent": "career", "lead_count": 50},
+        json={"prompt": "Find career ops", "lead_count": 50},
     )
     assert response.status_code == 202
     data = response.json()
-    assert data["intent"] == "career"
+    assert data["prompt"] == "Find career ops"
     assert data["lead_count"] == 50
     assert data["status"] == "pending"
     assert data["progress"] == 0
@@ -89,7 +89,7 @@ def test_get_job_status_existing(setup_database):
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == job_id
-    assert data["intent"] == "sales"
+    assert data["prompt"] == "Find sales leads"
     assert data["status"] == "completed"
 
 
@@ -116,7 +116,7 @@ def test_get_job_results_empty(setup_database):
     # Create a new pending job 
     create_response = client.post(
         "/api/leads/generate",
-        json={"intent": "growth", "lead_count": 5},
+        json={"prompt": "Find growth roles", "lead_count": 5},
     )
     job_id = create_response.json()["id"]
 
@@ -145,7 +145,7 @@ def test_cancel_job_pending(setup_database):
     # Enqueue a new job and cancel it instantly
     create_response = client.post(
         "/api/leads/generate",
-        json={"intent": "sales", "lead_count": 5},
+        json={"prompt": "Find sales leads", "lead_count": 5},
     )
     job_id = create_response.json()["id"]
 

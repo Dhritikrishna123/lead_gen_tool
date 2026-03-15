@@ -3,7 +3,7 @@ Pydantic schemas for request / response validation.
 """
 
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
@@ -35,13 +35,13 @@ class TokenResponse(BaseModel):
 # Job
 # ---------------------------------------------------------------------------
 class JobCreate(BaseModel):
-    intent: Literal["career", "growth", "sales"] = "career"
+    prompt: str = Field(..., description="Natural language prompt describing target leads")
     lead_count: int = Field(default=100, ge=1, le=1000)
 
 
 class JobResponse(BaseModel):
     id: int
-    intent: str
+    prompt: str
     lead_count: int
     status: str
     progress: int

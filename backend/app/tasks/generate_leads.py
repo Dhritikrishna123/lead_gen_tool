@@ -21,7 +21,7 @@ from app.scrapers.freelancer import FreelancerScraper
 
 
 @celery_app.task(bind=True, name="app.tasks.generate_leads")
-def generate_leads_task(self, job_id: int):
+def generate_leads_task(self, job_id: int, keywords: list = None, sources: list = None):
     """
     Celery task that manages the lifecycle of a lead generation job (QUEUED -> PROCESSING -> COMPLETED/FAILED).
     """
@@ -52,53 +52,59 @@ def generate_leads_task(self, job_id: int):
 
         # 3. Call Scrapers Sequentially
         try:
-            # Allocate target quotas
-            upwork_quota = max(1, job.lead_count // 2)
-            freelancer_quota = job.lead_count - upwork_quota
+            intent = " ".join(keywords) if keywords else "software developer"
+            
+            # Default to all if none explicitly requested
+            allowed_sources = [s.lower() for s in sources] if sources else ["upwork", "freelancer"]
+            if not allowed_sources:
+                allowed_sources = ["upwork", "freelancer"]
 
-            logger.info(f"Job {job_id} allocating {upwork_quota} to Upwork and {freelancer_quota} to Freelancer.")
+            active_source_count = len(allowed_sources)
+            quota_per_source = max(1, job.lead_count // active_source_count)
+
+            logger.info(f"Job {job_id} assigning {quota_per_source} quota for sources {allowed_sources} with intent: '{intent}'")
 
             # Upwork
-            upwork_scraper = UpworkScraper()
-            upwork_jobs_data = upwork_scraper.scrape(intent=job.intent, lead_count=upwork_quota, job_id=job.id)
+            if "upwork" in allowed_sources:
+                upwork_scraper = UpworkScraper()
+                upwork_jobs_data = upwork_scraper.scrape(intent=intent, lead_count=quota_per_source, job_id=job.id)
+
+                for jd in upwork_jobs_data:
+                    description_block = (
+                        f"Job Type: {jd['job_type']}\n"
+                        f"Experience Level: {jd['experience_level']}\n"
+                        f"Budget: {jd['budget']}\n"
+                        f"Duration: {jd['duration']}\n"
+                        f"Workload: {jd['workload']}\n"
+                        f"Skills: {jd['skills']}\n"
+                        f"---\n"
+                        f"{jd['description']}"
+                    )
+                    db.add(Lead(
+                        job_id=job.id, name="Upwork User", company="Upwork",
+                        title=jd["title"], source_url=jd["url"],
+                        description=description_block, confidence=0.85
+                    ))
 
             # Freelancer
-            freelancer_scraper = FreelancerScraper()
-            freelancer_jobs_data = freelancer_scraper.scrape(intent=job.intent, lead_count=freelancer_quota, job_id=job.id)
+            if "freelancer" in allowed_sources:
+                freelancer_scraper = FreelancerScraper()
+                freelancer_jobs_data = freelancer_scraper.scrape(intent=intent, lead_count=quota_per_source, job_id=job.id)
 
-            # Insert Upwork Leads
-            for jd in upwork_jobs_data:
-                description_block = (
-                    f"Job Type: {jd['job_type']}\n"
-                    f"Experience Level: {jd['experience_level']}\n"
-                    f"Budget: {jd['budget']}\n"
-                    f"Duration: {jd['duration']}\n"
-                    f"Workload: {jd['workload']}\n"
-                    f"Skills: {jd['skills']}\n"
-                    f"---\n"
-                    f"{jd['description']}"
-                )
-                db.add(Lead(
-                    job_id=job.id, name="Upwork User", company="Upwork",
-                    title=jd["title"], source_url=jd["url"],
-                    description=description_block, confidence=0.85
-                ))
-
-            # Insert Freelancer Leads
-            for jd in freelancer_jobs_data:
-                description_block = (
-                    f"Price: {jd['price']}\n"
-                    f"Bids: {jd['bids']}\n"
-                    f"Time Left: {jd['time_left']}\n"
-                    f"Skills: {jd['skills']}\n"
-                    f"---\n"
-                    f"{jd['description']}"
-                )
-                db.add(Lead(
-                    job_id=job.id, name="Freelancer User", company="Freelancer",
-                    title=jd["title"], source_url=jd["url"],
-                    description=description_block, confidence=0.85
-                ))
+                for jd in freelancer_jobs_data:
+                    description_block = (
+                        f"Price: {jd['price']}\n"
+                        f"Bids: {jd['bids']}\n"
+                        f"Time Left: {jd['time_left']}\n"
+                        f"Skills: {jd['skills']}\n"
+                        f"---\n"
+                        f"{jd['description']}"
+                    )
+                    db.add(Lead(
+                        job_id=job.id, name="Freelancer User", company="Freelancer",
+                        title=jd["title"], source_url=jd["url"],
+                        description=description_block, confidence=0.85
+                    ))
             
             db.commit()
 
