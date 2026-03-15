@@ -44,11 +44,11 @@ def test_scraper_integration():
         generate_leads_task(job_id=new_job.id, keywords=["python", "developer"], sources=["upwork", "freelancer"])
         
         # 4. Verify results
-        if job.error_message:
-            logger.error(f"Job Error: {job.error_message}")
+        if new_job.error_message:
+            logger.error(f"Job Error: {new_job.error_message}")
             
-        leads = db.query(Lead).filter(Lead.job_id == job.id).all()
-        logger.info(f"Found {len(leads)} leads in database for job {job.id}:")
+        leads = db.query(Lead).filter(Lead.job_id == new_job.id).all()
+        logger.info(f"Found {len(leads)} leads in database for job {new_job.id}:")
         for lead in leads:
             logger.info(f"- [{lead.title}] {lead.source_url}")
             
