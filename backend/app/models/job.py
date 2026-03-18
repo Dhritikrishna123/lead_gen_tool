@@ -2,27 +2,27 @@
 Job (scraping request) ORM model.
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Enum, ForeignKey, func
-import enum
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from sqlalchemy import String, Integer, DateTime, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-
-
-class JobStatus(str, enum.Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
 
 
 class Job(Base):
     __tablename__ = "jobs"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    intent = Column(String, nullable=False)  # "career" or "growth"
-    lead_count = Column(Integer, default=100)
-    status = Column(Enum(JobStatus), default=JobStatus.PENDING)
-    result_url = Column(String, nullable=True)  # S3 URL for the CSV
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    id: Mapped[int] = mapped_column(primary_key=True)
+    prompt: Mapped[str] = mapped_column(Text)
+    lead_count: Mapped[int] = mapped_column(Integer, default=100)
+    status: Mapped[str] = mapped_column(String(50), default="pending") # pending, processing, completed, failed
+    progress: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    result_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    leads: Mapped[List["Lead"]] = relationship("Lead", back_populates="job", cascade="all, delete-orphan")

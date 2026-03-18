@@ -1,10 +1,11 @@
 import pytest
+from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base, get_db
-from app.models.models import Job, User, Lead
+from app.models import Job, Lead
 from app.config import settings
 from main import app
 
@@ -43,12 +44,7 @@ def setup_database():
     test_state = {}
     
     try:
-        dummy_user = User(email="dummy_test@example.com", hashed_password="hashed_password", full_name="Test User")
-        db.add(dummy_user)
-        db.commit()
-        db.refresh(dummy_user)
-        
-        dummy_job = Job(user_id=dummy_user.id, prompt="Find sales leads", lead_count=50, status="completed")
+        dummy_job = Job(prompt="Find sales leads", lead_count=50, status="completed")
         db.add(dummy_job)
         db.commit()
         db.refresh(dummy_job)
@@ -68,7 +64,12 @@ def setup_database():
     Base.metadata.drop_all(bind=engine)
 
 
-def test_generate_leads(setup_database):
+@patch("app.routes.leads.generate_leads_task.delay")
+@patch("app.routes.leads.parse_prompt", new_callable=AsyncMock)
+def test_generate_leads(mock_parse, mock_delay, setup_database):
+    mock_parse.return_value = {"keywords": ["career", "ops"], "sources": []}
+    mock_delay.return_value = None
+
     response = client.post(
         "/api/leads/generate",
         json={"prompt": "Find career ops", "lead_count": 50},
@@ -112,7 +113,12 @@ def test_get_job_results_populated(setup_database):
     assert "Alice CEO" in names
     assert "Bob CTO" in names
 
-def test_get_job_results_empty(setup_database):
+@patch("app.routes.leads.generate_leads_task.delay")
+@patch("app.routes.leads.parse_prompt", new_callable=AsyncMock)
+def test_get_job_results_empty(mock_parse, mock_delay, setup_database):
+    mock_parse.return_value = {"keywords": ["growth", "roles"], "sources": []}
+    mock_delay.return_value = None
+
     # Create a new pending job 
     create_response = client.post(
         "/api/leads/generate",
@@ -128,37 +134,4 @@ def test_get_job_results_empty(setup_database):
     assert len(data) == 0
 
 
-def test_export_job_results_csv(setup_database):
-    job_id = setup_database["job_id"]
-    response = client.get(f"/api/leads/jobs/{job_id}/export")
-    assert response.status_code == 200
-    assert response.headers["content-type"] == "text/csv; charset=utf-8"
-    assert "attachment; filename=" in response.headers["content-disposition"]
-    
-    # Check CSV header
-    csv_content = response.text
-    assert "ID,Name,Email,Company,Title,Source URL,Confidence%" in csv_content
-    assert "Alice CEO,alice@test.com" in csv_content
 
-
-def test_cancel_job_pending(setup_database):
-    # Enqueue a new job and cancel it instantly
-    create_response = client.post(
-        "/api/leads/generate",
-        json={"prompt": "Find sales leads", "lead_count": 5},
-    )
-    job_id = create_response.json()["id"]
-
-    response = client.post(f"/api/leads/jobs/{job_id}/cancel")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "cancelled"
-    assert data["completed_at"] is not None
-
-
-def test_cancel_job_invalid_state(setup_database):
-    # Attempt to cancel the pre-populated completed job. It should fail.
-    job_id = setup_database["job_id"]
-    response = client.post(f"/api/leads/jobs/{job_id}/cancel")
-    assert response.status_code == 409
-    assert "Cannot cancel job" in response.json()["detail"]

@@ -1,3 +1,4 @@
 # Lead Gen Tool — Models Package
 
-from .models import User, Job, Lead
+from .job import Job
+from .lead import Lead

@@ -4,8 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
-from app.models.models import Job, Lead, User
-from app.auth.security import get_password_hash
+from app.models import Job, Lead
 from app.tasks.generate_leads import generate_leads_task
 
 # Set up logging to console
@@ -18,19 +17,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def test_scraper_integration():
     db = SessionLocal()
     try:
-        # 1. Grab any User or create a temporary isolated one
-        user = db.query(User).first()
-        if not user:
-            user = User(id=99999, email="upwork_testing_isolation@example.com", hashed_password=get_password_hash("testpass"), is_active=True)
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-
-        # 2. Create a dummy test job linked to the user
+        # 2. Create a dummy test job
         new_job = Job(
-            user_id=user.id,
-            prompt="Find python developers on freelancer or upwork",
-            lead_count=3,
+            prompt="Find Java developers on freelancer or upwork",
+            lead_count=300,
             status="pending"
         )
         db.add(new_job)

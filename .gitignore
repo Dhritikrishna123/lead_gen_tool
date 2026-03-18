@@ -33,3 +33,17 @@ npm-debug.log*
 # --------------- Misc -----------------
 *.log
 ISSUES.txt
+lead.txt
+
+# --------------- Binaries & Build ------
+docker-compose
+
+# --------------- Environment & Cache ---
+.venv/
+.pytest_cache/
+celerybeat-schedule
+celerybeat.pid
+
+# --------------- Data Files ------------
+*.csv
+*.json

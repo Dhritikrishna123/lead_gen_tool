@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: leadgen_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: leadgen_redis
+    restart: always
+    command: redis-server --requirepass redis123
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: leadgen_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://admin:admin123@postgres:5432/mydb
+      - REDIS_URL=redis://:redis123@redis:6379/0
+      - CELERY_BROKER_URL=redis://:redis123@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:redis123@redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    command: >
+      bash -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"
+
+  celery_worker:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: leadgen_worker
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://admin:admin123@postgres:5432/mydb
+      - REDIS_URL=redis://:redis123@redis:6379/0
+      - CELERY_BROKER_URL=redis://:redis123@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:redis123@redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    # Start Xvfb in the background explicitly to bypass xvfb-run hanging as PID 1
+    command: sh -c "Xvfb :99 -screen 0 1280x1024x24 & export DISPLAY=:99 && sleep 2 && celery -A app.tasks.celery_app worker --loglevel=info"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: leadgen_frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:

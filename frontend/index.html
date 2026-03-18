@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Gen AI Setup</title>
+    <!-- Modern Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --surface: rgba(255, 255, 255, 0.03);
+            --surface-border: rgba(255, 255, 255, 0.08);
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --error: #ef4444;
+            --glass-blur: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 4rem 2rem;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.1), transparent 25%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .glass-card {
+            background: var(--surface);
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid var(--surface-border);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .glass-card:hover { border-color: rgba(255, 255, 255, 0.15); }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        textarea, input[type="number"] {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--surface-border);
+            border-radius: 12px;
+            padding: 1rem;
+            color: var(--text-main);
+            font-size: 1.1rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        textarea:focus, input[type="number"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: fit-content;
+            margin-top: 1rem;
+        }
+
+        .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+        .btn-primary:active { transform: translateY(1px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        /* Status Section */
+        #status-card {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5rem;
+            text-align: center;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--surface-border);
+            border-bottom-color: var(--primary);
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--primary), #818cf8);
+            border-radius: 4px;
+            transition: width 0.4s ease;
+        }
+
+        #status-text {
+            font-weight: 600;
+            font-size: 1.2rem;
+            letter-spacing: 0.02em;
+        }
+
+        /* Results Table */
+        #results-card {
+            display: none;
+            animation: fadeIn 0.5s ease;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            margin-top: 1rem;
+        }
+
+        th, td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--surface-border);
+        }
+
+        th {
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            font-size: 0.95rem;
+            color: #cbd5e1;
+        }
+
+        td a {
+            color: var(--primary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        td a:hover { text-decoration: underline; color: #818cf8; }
+
+        .badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: white;
+            border: 1px solid var(--surface-border);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,0.05); }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>AI Context Pipeline</h1>
+        <p>Natural Language Lead Target Generation Orchestrator</p>
+    </header>
+
+    <div class="glass-card" id="prompt-card">
+        <div class="input-group">
+            <label for="prompt">Lead Description Prompt</label>
+            <textarea id="prompt" placeholder="E.g., Find web dev jobs on freelancer and upwork..."></textarea>
+        </div>
+        <div class="input-group" style="margin-top: 1rem;">
+            <label for="lead_count">Maximum Leads</label>
+            <input type="number" id="lead_count" value="10" min="1" max="500">
+        </div>
+        <button class="btn-primary" id="generate-btn" onclick="startGeneration()">
+            Generate Leads ⚡
+        </button>
+    </div>
+
+    <div class="glass-card" id="status-card">
+        <div class="loader" id="loader"></div>
+        <p id="status-text">Waking up the Swarm...</p>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+    </div>
+
+    <div class="glass-card" id="results-card">
+        <div class="top-row">
+            <h2>Generated Leads</h2>
+            <button class="btn-secondary" id="export-btn" onclick="exportData()">Export CSV</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Target Source</th>
+                    <th>Extracted Title</th>
+                    <th>Link Payload</th>
+                    <th>Confidence</th>
+                </tr>
+            </thead>
+            <tbody id="results-body">
+                <!-- Rows injected by JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:8000/api/leads';
+    let currentJobId = null;
+    let pollInterval = null;
+
+    async function startGeneration() {
+        const promptText = document.getElementById('prompt').value;
+        const leadCount = parseInt(document.getElementById('lead_count').value, 10) || 10;
+        
+        if (!promptText.trim()) return alert("Please enter a prompt.");
+
+        document.getElementById('generate-btn').disabled = true;
+        document.getElementById('status-card').style.display = 'flex';
+        document.getElementById('results-card').style.display = 'none';
+        document.getElementById('status-text').innerText = 'Translating Prompt via Gemini...';
+        document.getElementById('progress-fill').style.width = '10%';
+        document.getElementById('loader').style.display = 'inline-block';
+
+        try {
+            const res = await fetch(`${API_URL}/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: promptText, lead_count: leadCount })
+            });
+
+            if (!res.ok) throw new Error("Failed to queue job");
+
+            const data = await res.json();
+            currentJobId = data.id;
+            
+            document.getElementById('status-text').innerText = 'Executing Distributed Crawlers...';
+            document.getElementById('progress-fill').style.width = '30%';
+
+            // Start polling
+            pollInterval = setInterval(pollStatus, 2000);
+
+        } catch (err) {
+            alert(err.message);
+            resetUI();
+        }
+    }
+
+    async function pollStatus() {
+        if (!currentJobId) return;
+
+        try {
+            const res = await fetch(`${API_URL}/jobs/${currentJobId}`);
+            if (!res.ok) throw new Error("Failed to fetch status");
+            const data = await res.json();
+
+            const progress = data.progress || 0;
+            document.getElementById('progress-fill').style.width = `${Math.max(30, progress)}%`;
+
+            if (data.status === 'completed') {
+                clearInterval(pollInterval);
+                document.getElementById('status-text').innerText = 'Scraping Completed. Fetching results...';
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('progress-fill').style.width = '100%';
+                
+                setTimeout(() => fetchResults(), 500);
+            } else if (data.status === 'failed' || data.status === 'cancelled') {
+                clearInterval(pollInterval);
+                document.getElementById('status-text').innerText = `Job ${data.status.toUpperCase()}`;
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('progress-fill').style.background = 'var(--error)';
+                document.getElementById('generate-btn').disabled = false;
+            }
+
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    async function fetchResults() {
+        try {
+            const res = await fetch(`${API_URL}/jobs/${currentJobId}/results`);
+            const leads = await res.json();
+            
+            const tbody = document.getElementById('results-body');
+            tbody.innerHTML = '';
+
+            if (leads.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No leads found.</td></tr>';
+            } else {
+                leads.forEach(lead => {
+                    const row = document.createElement('tr');
+                    
+                    const score = Math.round((lead.confidence || 0) * 100);
+                    
+                    row.innerHTML = `
+                        <td>${lead.company}</td>
+                        <td style="font-weight: 500; color: #fff;">${lead.title}</td>
+                        <td><a href="${lead.source_url}" target="_blank">View Post ↗</a></td>
+                        <td><span class="badge">${score}% Match</span></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            document.getElementById('status-card').style.display = 'none';
+            document.getElementById('results-card').style.display = 'block';
+            document.getElementById('generate-btn').disabled = false;
+
+        } catch (err) {
+            console.error("Failed to load results", err);
+            resetUI();
+        }
+    }
+
+    function exportData() {
+        if (!currentJobId) return;
+        window.open(`${API_URL}/jobs/${currentJobId}/export`, '_blank');
+    }
+
+    function resetUI() {
+        if (pollInterval) clearInterval(pollInterval);
+        document.getElementById('generate-btn').disabled = false;
+        document.getElementById('status-card').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>

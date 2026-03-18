@@ -1,6 +1,6 @@
-import io
-import csv
 from typing import List
+import csv
+import io
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import StreamingResponse
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.schemas.schemas import JobCreate, JobResponse, LeadResponse
-from app.models.models import Job, Lead, User
+from app.models import Job, Lead
 from app.database import get_db
 from app.tasks.generate_leads import generate_leads_task
 from app.services.ai_engine import parse_prompt
@@ -22,24 +22,12 @@ async def generate_leads(
     db: Session = Depends(get_db)
 ):
     """Queue a new lead generation job."""
-    # Normally we would retrieve the user from an auth dependency mechanism.
-    # For now, we assume a preconfigured user with ID 1 exists.
-    # In a real scenario, remove this block and inject current_user.
-    user_stmt = select(User).where(User.id == 1)
-    user = db.execute(user_stmt).scalars().first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No authenticated user available; configure authentication or user ID 1.",
-        )
-
     # Run the prompt through Gemini to extract logic targets
     parsed_data = await parse_prompt(job_in.prompt)
     keywords = parsed_data.get("keywords", [])
     sources = parsed_data.get("sources")
 
     new_job = Job(
-        user_id=user.id,
         prompt=job_in.prompt,
         lead_count=job_in.lead_count,
         status="pending"
@@ -66,33 +54,8 @@ async def get_job_status(job_id: int, db: Session = Depends(get_db)):
     return job
 
 
-@router.post("/jobs/{job_id}/cancel", response_model=JobResponse)
-async def cancel_job(job_id: int, db: Session = Depends(get_db)):
-    """Cancel a pending or processing job."""
-    job = db.get(Job, job_id)
-    
-    if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail="Job not found"
-        )
-        
-    if job.status in ["completed", "failed", "cancelled"]:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, 
-            detail=f"Cannot cancel job in '{job.status}' state."
-        )
-        
-    job.status = "cancelled"
-    job.completed_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(job)
-    
-    return job
-
-
 @router.get("/jobs/{job_id}/results", response_model=List[LeadResponse])
-async def get_job_results(job_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+async def get_job_results(job_id: int, skip: int = 0, limit: int = 1000, db: Session = Depends(get_db)):
     """Retrieve the scraped leads for a completed job."""
     job = db.get(Job, job_id)
     if not job:
@@ -109,54 +72,37 @@ async def get_job_results(job_id: int, skip: int = 0, limit: int = 100, db: Sess
 
 @router.get("/jobs/{job_id}/export")
 async def export_job_results(job_id: int, db: Session = Depends(get_db)):
-    """
-    Stream the scraped leads for a completed job as a CSV file to the client directly
-    from PostgreSQL (bypassing the need for S3 cloud storage).
-    """
+    """Export the scraped leads as a CSV file."""
     job = db.get(Job, job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-    
-    # Optionally fail if not completed
-    # if job.status != "completed":
-    #    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Job is not completed yet.")
-
-    def iter_csv():
-        # Using a generator avoids loading all records into memory at once
-        output = io.StringIO()
-        writer = csv.writer(output)
         
-        # Write header
-        writer.writerow(["ID", "Name", "Email", "Company", "Title", "Source URL", "Confidence%"])
-        yield output.getvalue()
-        output.seek(0)
-        output.truncate(0)
+    stmt = select(Lead).where(Lead.job_id == job_id)
+    leads = db.execute(stmt).scalars().all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Headers
+    writer.writerow(["Lead Name", "Job Board", "Job Title", "Source URL", "Match Confidence", "Full Description"])
+    
+    for lead in leads:
+        writer.writerow([
+            lead.name,
+            lead.company,
+            lead.title,
+            lead.source_url,
+            lead.confidence,
+            lead.description
+        ])
+        
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=leadgen_job_{job_id}.csv"}
+    )
 
-        # Iterate over results chunks locally
-        chunk_size = 500
-        offset = 0
-        while True:
-            stmt = select(Lead).where(Lead.job_id == job_id).offset(offset).limit(chunk_size)
-            chunk = db.execute(stmt).scalars().all()
-            if not chunk:
-                break
-                
-            for lead in chunk:
-                writer.writerow([
-                    lead.id,
-                    lead.name or "",
-                    lead.email or "",
-                    lead.company or "",
-                    lead.title or "",
-                    lead.source_url or "",
-                    round((lead.confidence or 0.0) * 100, 2)
-                ])
-                
-            yield output.getvalue()
-            output.seek(0)
-            output.truncate(0)
-            offset += chunk_size
-            
-    response = StreamingResponse(iter_csv(), media_type="text/csv")
-    response.headers["Content-Disposition"] = f"attachment; filename=leads_job_{job_id}.csv"
-    return response
+
+

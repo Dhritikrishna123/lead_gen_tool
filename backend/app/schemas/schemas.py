@@ -5,30 +5,7 @@ Pydantic schemas for request / response validation.
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-
-
-# ---------------------------------------------------------------------------
-# Auth
-# ---------------------------------------------------------------------------
-class UserCreate(BaseModel):
-    email: str
-    password: str
-    full_name: Optional[str] = None
-
-
-class UserResponse(BaseModel):
-    id: int
-    email: str
-    full_name: Optional[str] = None
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ---------------------------------------------------------------------------

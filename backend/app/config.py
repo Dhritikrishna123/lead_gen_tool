@@ -18,12 +18,12 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
 
     # Database
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/lead_gen_tool"
+    DATABASE_URL: str = ""
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
 
     # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str = ""
     REDIS_MAX_CONNECTIONS: int = 10
 
     # AWS S3
@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
 
     # Celery Configuration
-    CELERY_BROKER_URL: str = "redis://:redis123@localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://:redis123@localhost:6379/0"
+    CELERY_BROKER_URL: str = ""
+    CELERY_RESULT_BACKEND: str = ""
 
     model_config = SettingsConfigDict(env_file=".env")
 
